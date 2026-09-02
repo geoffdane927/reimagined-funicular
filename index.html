@@ -12,7 +12,8 @@
     <h1>Gaussian Splat Creator</h1>
     <p class="sub">Turn an MP4 into a simple GPU-rendered Gaussian-style splat cloud.</p>
     <label class="file"><input id="videoFile" type="file" accept="video/mp4,video/*">Choose MP4 video</label>
-    <div id="videoInfo">No video loaded.</div>
+    <video id="source" muted playsinline controls></video>
+    <div id="videoInfo">No video loaded. Choose a video to use it as the source for the splats.</div>
     <label>Frame samples <output id="framesOut">24</output></label>
     <input id="frames" type="range" min="4" max="80" step="1" value="24">
     <label>Pixel stride <output id="strideOut">8</output></label>
@@ -29,7 +30,6 @@
     <div class="stats">Splats: <b id="count">0</b><br>FPS: <b id="fps">0</b><br>Status: <b id="status">Ready</b></div>
   </aside>
   <div id="help">Drag = orbit · Shift+drag = pan · Wheel = zoom</div>
-  <video id="source" muted playsinline></video>
   <canvas id="frameCanvas"></canvas>
   <script type="module" src="js/main.js"></script>
 </body>
