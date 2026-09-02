@@ -10,29 +10,28 @@
   <canvas id="gl"></canvas>
   <aside id="panel">
     <h1>Gaussian Splat Creator</h1>
-    <p class="sub">Upload a video, preview it immediately, then convert sampled frames into Gaussian splats with Hugging Face gsplat.js.</p>
+    <p class="sub">Turn a moving-camera video into a real 3D Gaussian reconstruction using multi-view depth and camera-pose estimation.</p>
     <label class="file"><input id="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/*">Choose video</label>
     <video id="source" muted playsinline controls preload="metadata"></video>
     <div id="videoInfo">No video selected.</div>
-    <div id="videoNotice">Select a video to begin. It stays local to your browser.</div>
+    <div id="videoNotice">Select a video to begin. Processing stays in your browser.</div>
     <label>Splat quality</label>
     <select id="quality">
-      <option value="low">Low — fast</option>
+      <option value="low">Low — fast preview</option>
       <option value="medium" selected>Medium — balanced</option>
       <option value="high">High — detailed</option>
       <option value="ultra">Ultra — maximum detail</option>
     </select>
-    <div id="qualityInfo">16 frames · every 10 pixels</div>
-    <label>Depth spread <output id="depthOut">6.0</output></label>
-    <input id="depth" type="range" min="1" max="16" step="0.5" value="6">
+    <div id="qualityInfo">16 views · multi-view depth + camera poses · Balanced</div>
     <label>Splat size <output id="sizeOut">1.00</output></label>
-    <input id="size" type="range" min="0.25" max="3" step="0.05" value="1">
+    <input id="size" type="range" min="0.4" max="2" step="0.05" value="1">
+    <div class="modelInfo">Reconstruction model: <b>Depth Anything 3 Base, 4-view</b><br>First use downloads about 200 MB of model weights.</div>
     <div class="buttons">
-      <button id="create" disabled>Create splats from video</button>
+      <button id="create" disabled>Reconstruct 3D splat</button>
       <button id="clear">Clear</button>
       <button id="export">Export PLY</button>
     </div>
-    <div class="stats">Splats: <b id="count">0</b><br>FPS: <b id="fps">0</b><br>Status: <b id="status">Ready — choose a video</b></div>
+    <div class="stats">Gaussians: <b id="count">0</b><br>FPS: <b id="fps">0</b><br>Status: <b id="status">Ready — choose a video</b></div>
   </aside>
   <div id="help">Drag = orbit · Shift+drag = pan · Wheel = zoom</div>
   <canvas id="frameCanvas"></canvas>
