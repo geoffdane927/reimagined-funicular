@@ -10,14 +10,22 @@
   <canvas id="gl"></canvas>
   <aside id="panel">
     <h1>Gaussian Splat Creator</h1>
-    <p class="sub">Turn an MP4 into a simple GPU-rendered Gaussian-style splat cloud.</p>
-    <label class="file"><input id="videoFile" type="file" accept="video/mp4,video/*">Choose MP4 video</label>
-    <video id="source" muted playsinline controls></video>
+    <p class="sub">Upload a video and turn its frames into a GPU-rendered splat cloud.</p>
+    <label class="file"><input id="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime,video/*">Choose video</label>
+    <video id="source" muted playsinline controls preload="metadata"></video>
     <div id="videoInfo">No video loaded. Choose a video to use it as the source for the splats.</div>
+    <div id="videoNotice">Your selected video will be processed locally in your browser.</div>
+    <label>Splat quality</label>
+    <select id="quality">
+      <option value="low">Low — fast</option>
+      <option value="medium" selected>Medium — balanced</option>
+      <option value="high">High — detailed</option>
+      <option value="ultra">Ultra — maximum detail</option>
+    </select>
     <label>Frame samples <output id="framesOut">24</output></label>
-    <input id="frames" type="range" min="4" max="80" step="1" value="24">
+    <input id="frames" type="range" min="4" max="100" step="1" value="24">
     <label>Pixel stride <output id="strideOut">8</output></label>
-    <input id="stride" type="range" min="2" max="20" step="1" value="8">
+    <input id="stride" type="range" min="2" max="24" step="1" value="8">
     <label>Depth spread <output id="depthOut">6.0</output></label>
     <input id="depth" type="range" min="1" max="16" step="0.5" value="6">
     <label>Splat size <output id="sizeOut">1.00</output></label>
