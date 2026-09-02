@@ -8,6 +8,9 @@ export class SplatRenderer {
     this.camera = new SPLAT.Camera();
     this.controls = new SPLAT.OrbitControls(this.camera, canvas);
     this.count = 0;
+    this.camera.position.z = 8;
+    this.controls.target.z = 3;
+    this.controls.update();
     this.resize();
     addEventListener('resize', () => this.resize());
   }
@@ -19,13 +22,8 @@ export class SplatRenderer {
   async setPLY(plyText, count, onProgress) {
     this.clear();
     this.count = count || 0;
-
-    // Do not pass a Blob URL to Loader.LoadAsync. gsplat.js chooses loaders
-    // based on file extensions, and blob: URLs do not have a .ply extension.
-    // Use its PLYLoader directly with the generated PLY bytes instead.
     const bytes = new TextEncoder().encode(plyText);
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-
     try {
       SPLAT.PLYLoader.LoadFromArrayBuffer(buffer, this.scene, '');
       onProgress?.(1);
@@ -33,7 +31,9 @@ export class SplatRenderer {
       console.error('gsplat.js PLY conversion failed:', error);
       throw new Error(`gsplat.js could not load the generated splat data: ${error.message || error}`);
     }
-
+    this.camera.position.z = 8;
+    this.controls.target.set(0, 0, 3);
+    this.controls.update();
     return this.count;
   }
 
