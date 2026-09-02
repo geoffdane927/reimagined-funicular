@@ -1,1 +1,36 @@
-export class SplatRenderer{constructor(canvas){this.canvas=canvas;this.gl=canvas.getContext('webgl2',{antialias:false,alpha:false});if(!this.gl)throw Error('WebGL2 is required.');const gl=this.gl;const vs=`#version 300 es\nprecision highp float;layout(location=0)in vec4 p;layout(location=1)in vec4 c;uniform mat4 vp;uniform float size;out vec4 color;void main(){vec4 q=vp*vec4(p.xyz,1.0);gl_Position=q;gl_PointSize=max(1.0,p.w*size*850.0/max(.2,q.w));color=c;}`;const fs=`#version 300 es\nprecision highp float;in vec4 color;out vec4 outColor;void main(){vec2 q=gl_PointCoord*2.-1.;float r=dot(q,q);if(r>1.)discard;float a=exp(-3.2*r)*color.a;outColor=vec4(color.rgb,a);}`;this.program=this.programOf(vs,fs);this.buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,32,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,4,gl.FLOAT,false,32,16);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.disable(gl.DEPTH_TEST);this.vp=gl.getUniformLocation(this.program,'vp');this.size=gl.getUniformLocation(this.program,'size');this.camera={yaw:.55,pitch:.2,dist:5,px:0,py:0};this.resize();addEventListener('resize',()=>this.resize());this.bindControls()}programOf(v,f){const gl=this.gl,make=(t,s)=>{const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x};const p=gl.createProgram();gl.attachShader(p,make(gl.VERTEX_SHADER,v));gl.attachShader(p,make(gl.FRAGMENT_SHADER,f));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p}resize(){const d=Math.min(devicePixelRatio||1,2);this.canvas.width=innerWidth*d;this.canvas.height=innerHeight*d;this.gl.viewport(0,0,this.canvas.width,this.canvas.height)}matrix(){const a=this.canvas.width/this.canvas.height,f=1/Math.tan(Math.PI/6),n=.05,far=100;const P=new Float32Array([f/a,0,0,0,0,f,0,0,0,0,(far+n)/(n-far),-1,0,0,2*far*n/(n-far),0]);const c=this.camera,cy=Math.cos(c.yaw),sy=Math.sin(c.yaw),cp=Math.cos(c.pitch),sp=Math.sin(c.pitch);const e=[c.px+c.dist*sy*cp,c.py+c.dist*sp,c.dist*cy*cp],t=[c.px,c.py,0];let F=[t[0]-e[0],t[1]-e[1],t[2]-e[2]],fl=Math.hypot(...F);F=F.map(x=>x/fl);let R=[F[2],0,-F[0]],rl=Math.hypot(R[0],R[2]);R=[R[0]/rl,0,R[2]/rl];let U=[R[1]*F[2]-R[2]*F[1],R[2]*F[0]-R[0]*F[2],R[0]*F[1]-R[1]*F[0]];const V=new Float32Array([R[0],U[0],-F[0],0,R[1],U[1],-F[1],0,R[2],U[2],-F[2],0,-R[0]*e[0]-R[1]*e[1]-R[2]*e[2],-U[0]*e[0]-U[1]*e[1]-U[2]*e[2],F[0]*e[0]+F[1]*e[1]+F[2]*e[2],1]);const O=new Float32Array(16);for(let r=0;r<4;r++)for(let k=0;k<4;k++)for(let j=0;j<4;j++)O[r*4+j]+=P[r*4+k]*V[k*4+j];return O}setData(data){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);this.count=data.length/8}bindControls(){let down=false,lx=0,ly=0,shift=false;this.canvas.addEventListener('pointerdown',e=>{down=true;shift=e.shiftKey;lx=e.clientX;ly=e.clientY;this.canvas.setPointerCapture(e.pointerId)});this.canvas.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;if(shift||e.shiftKey){this.camera.px-=dx*.006;this.camera.py+=dy*.006}else{this.camera.yaw-=dx*.008;this.camera.pitch=Math.max(-1.45,Math.min(1.45,this.camera.pitch-dy*.008))}});this.canvas.addEventListener('pointerup',()=>down=false);this.canvas.addEventListener('wheel',e=>{this.camera.dist=Math.max(1,Math.min(30,this.camera.dist*Math.exp(e.deltaY*.001)));e.preventDefault()},{passive:false})}render(size){const gl=this.gl;gl.clearColor(.018,.025,.05,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(this.program);gl.uniformMatrix4fv(this.vp,false,this.matrix());gl.uniform1f(this.size,size);gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.drawArrays(gl.POINTS,0,this.count||0)}}
+import * as SPLAT from 'https://cdn.jsdelivr.net/npm/gsplat@1.2.9/dist/index.es.js';
+
+export class SplatRenderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new SPLAT.WebGLRenderer(canvas);
+    this.scene = new SPLAT.Scene();
+    this.camera = new SPLAT.Camera();
+    this.controls = new SPLAT.OrbitControls(this.camera, canvas);
+    this.count = 0;
+    this.lastUrl = null;
+    this.resize();
+    addEventListener('resize', () => this.resize());
+  }
+
+  resize() { this.renderer.setSize(innerWidth, innerHeight); }
+
+  async setPLY(plyText, count) {
+    this.clear();
+    const blob = new Blob([plyText], {type:'application/octet-stream'});
+    this.lastUrl = URL.createObjectURL(blob);
+    this.count = count || 0;
+    await SPLAT.Loader.LoadAsync(this.lastUrl, this.scene, () => {});
+  }
+
+  clear() {
+    if (this.lastUrl) { URL.revokeObjectURL(this.lastUrl); this.lastUrl = null; }
+    this.scene = new SPLAT.Scene();
+    this.count = 0;
+  }
+
+  render() {
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+}
