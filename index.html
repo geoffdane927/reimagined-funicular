@@ -1,41 +1,36 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gaussian Splat Creator</title>
-<style>
-html,body{margin:0;height:100%;overflow:hidden;background:#05070b;color:#eef;font:14px system-ui,sans-serif}canvas{width:100%;height:100%;display:block}#ui{position:fixed;top:14px;left:14px;width:260px;padding:14px;border:1px solid #ffffff22;border-radius:14px;background:#0b1020dd;backdrop-filter:blur(8px);box-shadow:0 10px 40px #0008}h1{font-size:18px;margin:0 0 10px}label{display:block;margin:10px 0 5px;color:#b8c0d8}input[type=range]{width:100%}button{border:0;border-radius:9px;padding:8px 10px;margin:4px 3px 0 0;background:#26314e;color:white;cursor:pointer}button:hover{background:#354467}.row{display:flex;gap:5px;align-items:center}.stat{font-variant-numeric:tabular-nums;color:#9ff}#help{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);padding:7px 11px;border-radius:9px;background:#0009;color:#ccd;text-align:center}
-</style></head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gaussian Splat Video Creator</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
-<canvas id="gl"></canvas>
-<div id="ui"><h1>Gaussian Splat Creator</h1><div style="color:#aab4cf">WebAssembly generates the splat cloud; WebGL2 renders it on the GPU.</div>
-<label>Splats: <span id="nv">5000</span></label><input id="n" type="range" min="500" max="20000" step="500" value="5000">
-<label>Splat size: <span id="sv">1.00</span></label><input id="s" type="range" min="0.25" max="2.5" step="0.05" value="1">
-<div class="row"><button id="regen">Regenerate</button><button id="clear">Clear</button><button id="export">Export PLY</button></div>
-<div style="margin-top:10px">Count: <span class="stat" id="count">0</span><br>FPS: <span class="stat" id="fps">0</span></div></div>
-<div id="help">Drag = orbit · Wheel = zoom · Shift+drag = pan · Click = add splat cluster</div>
-<script>
-'use strict';
-const canvas=document.getElementById('gl'),gl=canvas.getContext('webgl2',{antialias:false,alpha:false});
-if(!gl){document.body.innerHTML='<h2 style="padding:2em">WebGL2 is required for GPU splat rendering.</h2>';throw Error('WebGL2 unavailable')}
-// Tiny self-contained WASM module. Its generate() function fills 8 floats per splat.
-const wasmB64='AGFzbQEAAAABCAFgA39/fwF/AwIBAAQFAXABAQEFBAEBEBAGCAF/AUGAiAQLBxUCBmVtb3J5AQAIZ2VuZXJhdGUAAAKlAgCUAgIBfwJ9AkBBIABNAgsgAEEGaiACQYCAgPwDNgIAIABBIGogAkG5sOG6QBsQbLSwLoEakEIdrNDAACAM5QiBSAFkkMAAIC/kiIFlDgCACAAQQRqIAVDMzMzP5Q4AgAgACACQY3M5QBsQd/mu+MDakEIdrNDAACAM5QiBSAFkkMAAIC/kiAElDgCACAAQSBqIQAgAyECIAFBf2oiAQ0ACwsgAwsALwRuYW1lAAcGZy53YXNtAQsBAAhnZW5lcmF0ZQcSAQAPX19zdGFja19wb2ludGVyAH8JcHJvZHVjZXJzAQxwcm9jZXNzZWQtYnkBBWNsYW5nXzE3LjAuMCAoaHR0cHM6Ly9naXRodWIuY29tL3N3aWZ0bGFuZy9sbHZtLXByb2plY3QuZ2l0IDEwOTk5YjZkMDM0ZmUzMThmM2Q1NmM4M2JkZGI2NTcyNTkzYThiYjApAEkPdGFyZ2V0X2ZlYXR1cmVzBCsKbXVsdGl2YWx1ZSsPbXV0YWJsZS1nbG9iYWxzKw9yZWZlcmVuY2UtdHlwZXMrCHNpZ24tZXh0';
-let wasm=null,splats=new Float32Array(0),seed=Date.now()>>>0;
-const vs=`#version 300 es\nprecision highp float;layout(location=0)in vec4 aPosSize;layout(location=1)in vec4 aColor;uniform mat4 uVP;uniform float uScale;out vec4 vColor;void main(){vec4 p=uVP*vec4(aPosSize.xyz,1.0);gl_Position=p;gl_PointSize=max(2.0,aPosSize.w*uScale*900.0/max(0.2,p.w));vColor=aColor;}`;
-const fs=`#version 300 es\nprecision highp float;in vec4 vColor;out vec4 outColor;void main(){vec2 q=gl_PointCoord*2.0-1.0;float r2=dot(q,q);if(r2>1.0)discard;float a=exp(-2.7*r2)*vColor.a;outColor=vec4(vColor.rgb,a);}`;
-function shader(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
-const prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vs));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(prog));gl.useProgram(prog);
-const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,32,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,4,gl.FLOAT,false,32,16);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.disable(gl.DEPTH_TEST);
-const uVP=gl.getUniformLocation(prog,'uVP'),uScale=gl.getUniformLocation(prog,'uScale');
-let yaw=.55,pitch=.25,dist=4.2,panX=0,panY=0,drag=false,lastX=0,lastY=0;
-function resize(){const d=Math.min(devicePixelRatio||1,2);canvas.width=innerWidth*d;canvas.height=innerHeight*d;gl.viewport(0,0,canvas.width,canvas.height)}addEventListener('resize',resize);resize();
-function mat(){const a=canvas.width/canvas.height,f=1/Math.tan(Math.PI/6),n=.05,fa=100;const P=new Float32Array([f/a,0,0,0,0,f,0,0,0,0,(fa+n)/(n-fa),-1,0,0,2*fa*n/(n-fa),0]);const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);const eye=[panX+dist*sy*cp,panY+dist*sp,dist*cy*cp];let F=[panX-eye[0],panY-eye[1],-eye[2]],fl=Math.hypot(F[0],F[1],F[2]);F=F.map(v=>v/fl);let R=[F[2],0,-F[0]],rl=Math.hypot(R[0],R[2]);R=[R[0]/rl,0,R[2]/rl];let U=[R[1]*F[2]-R[2]*F[1],R[2]*F[0]-R[0]*F[2],R[0]*F[1]-R[1]*F[0]];const V=new Float32Array([R[0],U[0],-F[0],0,R[1],U[1],-F[1],0,R[2],U[2],-F[2],0,-(R[0]*eye[0]+R[1]*eye[1]+R[2]*eye[2]),-(U[0]*eye[0]+U[1]*eye[1]+U[2]*eye[2]),F[0]*eye[0]+F[1]*eye[1]+F[2]*eye[2],1]);let O=new Float32Array(16);for(let r=0;r<4;r++)for(let c=0;c<4;c++)for(let k=0;k<4;k++)O[r*4+c]+=P[r*4+k]*V[k*4+c];return O}
-async function init(){const bytes=Uint8Array.from(atob(wasmB64),c=>c.charCodeAt(0));wasm=await WebAssembly.instantiate(bytes,{});generate();requestAnimationFrame(frame)}
-function generate(){const count=+document.getElementById('n').value,ptr=0;wasm.instance.exports.generate(ptr,count,seed);const mem=new Float32Array(wasm.instance.exports.memory.buffer,ptr,count*8);splats=mem.slice();seed=(seed+0x9e3779b9)>>>0;gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,splats,gl.DYNAMIC_DRAW);document.getElementById('count').textContent=count;document.getElementById('nv').textContent=count}
-function addCluster(x,y){const add=220,old=splats,arr=new Float32Array(old.length+add*8);arr.set(old);for(let i=0;i<add;i++){let j=old.length+i*8,ang=Math.random()*6.283,r=Math.sqrt(Math.random())*.35;arr[j]=x+Math.cos(ang)*r;arr[j+1]=y+(Math.random()-.5)*.35;arr[j+2]=(Math.random()-.5)*.35;arr[j+3]=.035+Math.random()*.05;arr[j+4]=arr[j+3];arr[j+5]=arr[j+3];arr[j+6]=.65+Math.random()*.35;arr[j+7]=1}splats=arr;gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,splats,gl.DYNAMIC_DRAW);document.getElementById('count').textContent=splats.length/8}
-function frame(t){gl.clearColor(.018,.025,.05,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(prog);gl.uniformMatrix4fv(uVP,false,mat());gl.uniform1f(uScale,+document.getElementById('s').value);gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.drawArrays(gl.POINTS,0,splats.length/8);if(frame.last){document.getElementById('fps').textContent=Math.round(1000/(t-frame.last))}frame.last=t;requestAnimationFrame(frame)}
-canvas.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;let dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;if(e.shiftKey){panX-=dx*.005;panY+=dy*.005}else{yaw-=dx*.008;pitch=Math.max(-1.45,Math.min(1.45,pitch-dy*.008))}});canvas.addEventListener('pointerup',e=>{if(Math.hypot(e.clientX-lastX,e.clientY-lastY)<3&&!e.shiftKey){let wx=(e.clientX/innerWidth-.5)*2,wy=(.5-e.clientY/innerHeight)*2;addCluster(wx*1.5,wy*1.2)}drag=false});canvas.addEventListener('wheel',e=>{dist=Math.max(1.2,Math.min(15,dist*Math.exp(e.deltaY*.001)));e.preventDefault()},{passive:false});
-document.getElementById('regen').onclick=generate;document.getElementById('clear').onclick=()=>{splats=new Float32Array(0);gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,splats,gl.DYNAMIC_DRAW);document.getElementById('count').textContent=0};document.getElementById('n').oninput=e=>document.getElementById('nv').textContent=e.target.value;document.getElementById('s').oninput=e=>document.getElementById('sv').textContent=(+e.target.value).toFixed(2);
-document.getElementById('export').onclick=()=>{let lines=['ply','format ascii 1.0','element vertex '+splats.length/8,'property float x','property float y','property float z','property float scale','property uchar red','property uchar green','property uchar blue','property uchar alpha','end_header'];for(let i=0;i<splats.length;i+=8)lines.push(`${splats[i]} ${splats[i+1]} ${splats[i+2]} ${splats[i+3]} 255 255 255 ${Math.round(splats[i+6]*255)}`);let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));a.download='splats.ply';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-init();
-</script></body></html>
+  <canvas id="gl"></canvas>
+  <aside id="panel">
+    <h1>Gaussian Splat Creator</h1>
+    <p class="sub">Turn an MP4 into a simple GPU-rendered Gaussian-style splat cloud.</p>
+    <label class="file"><input id="videoFile" type="file" accept="video/mp4,video/*">Choose MP4 video</label>
+    <div id="videoInfo">No video loaded.</div>
+    <label>Frame samples <output id="framesOut">24</output></label>
+    <input id="frames" type="range" min="4" max="80" step="1" value="24">
+    <label>Pixel stride <output id="strideOut">8</output></label>
+    <input id="stride" type="range" min="2" max="20" step="1" value="8">
+    <label>Depth spread <output id="depthOut">6.0</output></label>
+    <input id="depth" type="range" min="1" max="16" step="0.5" value="6">
+    <label>Splat size <output id="sizeOut">1.00</output></label>
+    <input id="size" type="range" min="0.25" max="3" step="0.05" value="1">
+    <div class="buttons">
+      <button id="create">Create splats</button>
+      <button id="clear">Clear</button>
+      <button id="export">Export PLY</button>
+    </div>
+    <div class="stats">Splats: <b id="count">0</b><br>FPS: <b id="fps">0</b><br>Status: <b id="status">Ready</b></div>
+  </aside>
+  <div id="help">Drag = orbit · Shift+drag = pan · Wheel = zoom</div>
+  <video id="source" muted playsinline></video>
+  <canvas id="frameCanvas"></canvas>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
